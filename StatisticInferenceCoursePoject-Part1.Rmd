@@ -1,0 +1,140 @@
+---
+title: "Statistic Inference Course Project - Part 1"
+author: "Vince Force"
+date: "5 janvier 2018"
+output:
+  pdf_document: null
+  md_document: null
+  html_document: null
+  word_document: default
+mainfont: Arial
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loadlibaries, echo=FALSE}
+library(ggplot2)
+library(grid)
+```
+
+
+```{r multiplotfunction, echo=FALSE}
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r part1constants, echo=FALSE}
+lambda <- 0.2
+n <- 1000
+nS <- 40
+nSamples <- 1000
+```
+
+# Synopsis
+
+We want to know if random exponential distribution follows the Central Limit Theorem (or not).
+
+# Analysis
+For illustrating data evidence, we draw two plots, using lambda = `r lambda` :
+
+- histogram and density for a distribution of a large (n = `r n`) collection of random exponentials (no set.seed())
+- histogram and density for the distribution of a large (nSamples = `r nSamples`) collection of averages of nS = `r nS` random exponentials (no set.seed()), and density of a normal distribution, with mean = 1/lambda (`r 1/lambda`) and sd = 1/lambda (`r 1/lambda`)
+
+```{r Exercise 1, cache = TRUE, fig.height=3, message=FALSE, warning=FALSE}
+expD <- rexp(n, lambda)
+expDMean <- round(mean(expD), 2)
+expDSd <- round(sd(expD), 2)
+theme_update(plot.title=element_text(hjust=0.5, size=9),
+             plot.subtitle=element_text(hjust=0.5, size=7))
+df1 <- data.frame(expD)
+g1 <- ggplot(df1, aes(x = expD)) + xlab("")
+g1 <- g1 + geom_histogram(aes(y=..density..), color="black", fill="white")
+g1 <- g1 + geom_density(alpha=.2, fill="#FF6666")
+t1 <- paste("Histogram of an exponential distribution\n(", n, " elements)", sep = "")
+g1 <- g1 + ggtitle(t1, subtitle = paste("mean : ", expDMean," | sd : ", expDSd, sep = ""))
+expDSamples <- matrix(nrow = nSamples, ncol = nS)
+for (i in 1:nSamples) expDSamples[i, ] <- rexp(nS, lambda)
+expDSamplesMeans <- apply(expDSamples, MARGIN = 1, mean)
+expDSamplesSds <- apply(expDSamples, MARGIN = 1, sd)
+expDSamplesMeansMean <- round(mean(expDSamplesMeans), 2)
+expDSamplesMeansSd <- round(sd(expDSamplesMeans), 2)
+expDSamplesSdsMean <- round(mean(expDSamplesSds), 2)
+df2 <- data.frame(expDSamplesMeans)
+g2 <- ggplot(df2, aes(x = expDSamplesMeans)) + xlab("")
+g2 <- g2 + geom_histogram(aes(y=..density..), color="black", fill="white")
+g2 <- g2 + geom_density(alpha=.2, fill="#FF6666")
+g2 <- g2 + stat_function(fun = dnorm, colour = "red",
+            args = list(mean = 1/lambda, sd = (1/lambda) / sqrt(nS)))
+st2 <- paste("mean of means : ", round(expDSamplesMeansMean, 2),
+             " | mean of sds : ", round(expDSamplesSdsMean, 2),
+             " | sd of means : ", round(expDSamplesMeansSd, 2),
+             "\n1 / lambda = ", 1/lambda, " | (1 / lambda) / sqrt(", nS, ")) = ",
+             round((1/lambda) / sqrt(nS), 2), sep = "")
+g2 <- g2 + ggtitle(paste("Histogram of means distribution\n(means of ", nSamples,
+                         " samples of ", nS, " elements each)", sep = ""), subtitle = st2)
+multiplot(g1, g2, cols = 2)
+```
+
+# Results
+On the figures above, we see on the figure on the left hand side that an exponential distrubution with `r n` elements does not follow a normal distribution, even if its mean and standard deviation are close to 1/lambda.
+
+We see on the figure on the right on side (`r nSamples` iterations on a `r nS` elements samples) that :
+
+- the density curve (in black) of the distribution of sample means is close to a normal density curve with mean = 1/lambda and sd = 1/lambda (in red)
+- the mean of the distribution of sample means is very close to 1/lambda
+- the mean of the distribution of sample sds is close to 1/lambda
+- the standard deviation of the distribution of sample means is near from sqrt(nS) / lambda, where nS is the size of each sample
+
+# Conclusion
+We conclude that the random exponential distribution follows the Central Limit Theorem.
+
+# Note on Rmd code
+Some R code chunks have been masked for better presentation, including functions multiplot (for ggplot, found on googling)
+
+Complete Rmd code can be found here
+
+[https://github.com/vinceforce/datasciencecoursera/blob/master/StatisticInferenceCoursePoject-Part1.Rmd]
