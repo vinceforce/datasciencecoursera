@@ -1,0 +1,293 @@
+---
+title: "Statistic Inference Course Project"
+author: "Vince Force"
+date: "5 janvier 2018"
+output:
+  pdf_document: null
+  md_document: null
+  html_document: null
+  word_document: default
+mainfont: Arial
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loadlibaries, echo=FALSE}
+library(ggplot2)
+library(grid)
+library(datasets)
+library(reshape2)
+```
+
+
+```{r multiplotfunction, echo=FALSE}
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r part1constants, echo=FALSE}
+lambda <- 0.2
+n <- 1000
+nS <- 40
+nSamples <- 1000
+```
+
+# Part 1 : Simulation Exercise
+
+We want to know if random exponential distribution follows the Central Limit Theorem (or not).
+
+## Analysis
+For illustrating data evidence, we draw two plots, using lambda = `r lambda` :
+
+- histogram and density for a distribution of a large (n = `r n`) collection of random exponentials (no set.seed())
+- histogram and density for the distribution of a large (nSamples = `r nSamples`) collection of averages of nS = `r nS` random exponentials (no set.seed()), and density of a normal distribution, with mean = 1/lambda (`r 1/lambda`) and sd = 1/lambda (`r 1/lambda`)
+
+```{r Exercise 1, cache = TRUE, fig.height=3, message=FALSE, warning=FALSE}
+expD <- rexp(n, lambda)
+expDMean <- round(mean(expD), 2)
+expDSd <- round(sd(expD), 2)
+theme_update(plot.title=element_text(hjust=0.5, size=9),
+             plot.subtitle=element_text(hjust=0.5, size=7))
+df1 <- data.frame(expD)
+g1 <- ggplot(df1, aes(x = expD)) + xlab("")
+g1 <- g1 + geom_histogram(aes(y=..density..), color="black", fill="white")
+g1 <- g1 + geom_density(alpha=.2, fill="#FF6666")
+t1 <- paste("Histogram of an exponential distribution\n(", n, " elements)", sep = "")
+g1 <- g1 + ggtitle(t1, subtitle = paste("mean : ", expDMean," | sd : ", expDSd, sep = ""))
+expDSamples <- matrix(nrow = nSamples, ncol = nS)
+for (i in 1:nSamples) expDSamples[i, ] <- rexp(nS, lambda)
+expDSamplesMeans <- apply(expDSamples, MARGIN = 1, mean)
+expDSamplesSds <- apply(expDSamples, MARGIN = 1, sd)
+expDSamplesMeansMean <- round(mean(expDSamplesMeans), 2)
+expDSamplesMeansSd <- round(sd(expDSamplesMeans), 2)
+expDSamplesSdsMean <- round(mean(expDSamplesSds), 2)
+df2 <- data.frame(expDSamplesMeans)
+g2 <- ggplot(df2, aes(x = expDSamplesMeans)) + xlab("")
+g2 <- g2 + geom_histogram(aes(y=..density..), color="black", fill="white")
+g2 <- g2 + geom_density(alpha=.2, fill="#FF6666")
+g2 <- g2 + stat_function(fun = dnorm, colour = "red",
+            args = list(mean = 1/lambda, sd = (1/lambda) / sqrt(nS)))
+st2 <- paste("mean of means : ", round(expDSamplesMeansMean, 2),
+             " | mean of sds : ", round(expDSamplesSdsMean, 2),
+             " | sd of means : ", round(expDSamplesMeansSd, 2),
+             "\n1 / lambda = ", 1/lambda, " | (1 / lambda) / sqrt(", nS, ")) = ",
+             round((1/lambda) / sqrt(nS), 2), sep = "")
+g2 <- g2 + ggtitle(paste("Histogram of means distribution\n(means of ", nSamples,
+                         " samples of ", nS, " elements each)", sep = ""), subtitle = st2)
+multiplot(g1, g2, cols = 2)
+```
+
+## Results
+On the figures above, we see on the figure on the left hand side that an exponential distrubution with `r n` elements does not follow a normal distribution, even if its mean and standard deviation are close to 1/lambda.
+
+We see on the figure on the right on side (`r nSamples` iterations on a `r nS` elements samples) that :
+
+- the density curve (in black) of the distribution of sample means is close to a normal density curve with mean = 1/lambda and sd = 1/lambda (in red)
+- the mean of the distribution of sample means is very close to 1/lambda
+- the mean of the distribution of sample sds is close to 1/lambda
+- the standard deviation of the distribution of sample means is near from sqrt(nS) / lambda, where nS is the size of each sample
+
+## Conclusion
+We conclude that the random exponential distribution follows the Central Limit Theorem.
+
+# Part 2 : Basic Inferential Data Analysis
+
+## Exploratory Analysis
+After giving basic description (str, head, summary) of data, we plot barplots to have a look on data distribution following different groupings.
+
+```{r part2constants, echo=FALSE}
+data(ToothGrowth)
+TG <- ToothGrowth
+```
+```{r part2datasummary, echo=FALSE}
+str(TG)
+head(TG)
+summary(TG)
+```
+
+
+```{r Exercise 2, cache=TRUE, fig.height=3}
+TG$dose <- as.factor(TG$dose)
+g1 <- ggplot(TG, aes(x=supp, y=len)) + geom_boxplot()
+g2 <- ggplot(TG, aes(x=dose, y=len)) + geom_boxplot()
+multiplot(g1, g2, cols = 2)
+```
+
+On the left hand side, the two distributions differ, but not very much. The supp factor seems not to be very significant, even if means are close.
+
+On the right hand side, the three distributions differ a lot one from the other. Dose factor seems much more significant.
+
+Let us make some tests to investigate.
+Considering the low number of observations (20), a t-distribution approach is convenient. We  assume equal variance in the various tests.
+
+```{r poolsdfunction, echo=FALSE}
+spf <- function(sx, sy, nx, ny) {
+    mixprob <- (nx - 1) / (nx + ny - 2)
+    sp <- sqrt((mixprob * sx^2 + (1 - mixprob) * sy^2))
+}
+```
+
+## T-tests for supp
+
+### Hypothesises
+We assume H0 hypothesis is that means mOJ and mVC are equal, ie mOJ = mVC.
+Ha is the hypothesis where moJ <> mVC.
+First, we perform a power test, and the a t-test.
+
+```{r Exercise 2 - t-tests-supp}
+TGsuppOJ <- TG[TG$supp == "OJ", "len"]
+TGsuppVC <- TG[TG$supp == "VC", "len"]
+mOJ <- mean(TGsuppOJ)
+mVC <- mean(TGsuppVC)
+sOJ <- sd(TGsuppOJ)
+sVC <- sd(TGsuppVC)
+nOJ <- length(TGsuppOJ)
+nVC <- length(TGsuppVC)
+sp <- spf(sOJ, sVC, nOJ, nVC)
+pow <- power.t.test(n = 30, delta = 0, sd = sp, alternative = "two.sided",
+                    type = "two.sample")$power
+paste("Power : ", pow)
+t.test(TGsuppOJ, TGsuppVC, mu = 0, paired = FALSE, var.equal = TRUE,
+       alternative = "two.sided")
+```
+
+### Results
+As we can see, with a 0.05 significance level, the power is 2.5%, which is very low.
+This is confirmed by the t-test, indicating :
+
+- a p-value of 0.06, greater than the significance level
+- a confidence interval containing the 0 value
+
+We can not reject the H0 hypothesis.
+That means that we can not be 95% sure that means differ.
+
+### Conclusion
+We can not tell, with this sample size, wether supp factor is significant on teeth growth or not.
+
+## T-tests for dose
+
+### Basic computations
+```{r}
+TGdose0.5 <- TG[TG$dose == 0.5, "len"]
+TGdose1 <- TG[TG$dose == 1, "len"]
+TGdose2 <- TG[TG$dose == 2, "len"]
+m0.5 <- mean(TGdose0.5)
+m1 <- mean(TGdose1)
+m2 <- mean(TGdose2)
+s0.5 <- sd(TGdose0.5)
+s1 <- sd(TGdose1)
+s2 <- sd(TGdose2)
+n0.5 <- length(TGdose0.5)
+n1 <- length(TGdose1)
+n2 <- length(TGdose2)
+```
+
+
+### Hypothesises (dose = 0.5 versus dose = 1)
+We assume H0 hypothesis is that means m0.5 and m1 are equal, ie m0.5 = m1.
+Ha is the alternative hypothesis where m0.5 <> m1.
+First, we perform a power test, and the a t-test.
+
+```{r Exercise 2 - t-tests-dose-2}
+sp <- spf(s0.5, s1, n0.5, n1)
+pow <- power.t.test(n = 30, delta = m1 - m0.5, sd = sp, alternative = "two.sided",
+             type = "two.sample")$power
+paste("Power : ", pow)
+t.test(TGdose1, TGdose0.5, mu = 0, paired = FALSE, var.equal = TRUE,
+       alternative = "two.sided", conf.level = 0.95)
+```
+
+### Results (dose = 0.5 versus dose = 1)
+As we can see, with a 0.05 significance level, the power is almost 100%, which is the best possible.
+
+This is confirmed by the t-test, indicating :
+
+- a p-value of 1.266e-07, much less than the significance level
+- a 95% confidence interval [6.28 11.98] not containing the 0 value
+
+We can reject the H0 hypothesis.
+
+That means that we can be 95% sure that means differ. The dose factor seems to be much significant.
+
+### Hypothesises (dose = 1 versus dose = 2)
+We assume H0 hypothesis is that means m1 and m2 are equal, ie m1 = m2.
+Ha is the hypothesis where m1 <> m2.
+First, we perform a power test, and the a t-test.
+
+```{r Exercise 2 - t-tests-dose-1}
+sp <- spf(s1, s2, n1, n2)
+pow <- power.t.test(n = 30, delta = m2 - m1, sd = sp, alternative = "two.sided",
+             type = "two.sample")$power
+paste("Power : ", pow)
+t.test(TGdose2, TGdose1, mu = 0, paired = FALSE, var.equal = TRUE,
+       alternative = "two.sided", conf.level = 0.95)
+```
+
+### Results (dose = 1 versus dose = 2)
+As we can see, with a 0.05 significance level, the power is almost 100%, which is the best possible.
+This is confirmed by the t-test, indicating :
+
+- a p-value of 1.811e-05, much less than the significance level
+- a 95% confidence interval [3.74 8.99] not containing the 0 value
+
+We can reject the H0 hypothesis.
+That means that we can be 95% sure that means differ. The dose factor seems to be much significant.
+
+### Conclusion
+A third test could have been done (comparing 0.5 with 2), but the result is obvious given the previous numeric comparison results and the boxplot.
+
+We can tell, with this sample size, that the dose factor is significant : len mean is greater as the dose is greater. 
+
+# Note on Rmd code
+Some R code chunks have been masked for better presentation, including functions :
+
+- multiplot (for ggplot, found on googling)
+- spf (pool standard deviation with equal variance).
+
+Complete Rmd code can be found here
+
+[https://github.com/vinceforce/datasciencecoursera/blob/master/StatisticInferenceCoursePoject.Rmd]
