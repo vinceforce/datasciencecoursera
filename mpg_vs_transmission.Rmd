@@ -1,0 +1,272 @@
+---
+title: "Motor trend - MPG versus Transmission"
+author: "Vince Force"
+date: "11 janvier 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+```
+
+## Executive summary
+As a journalist for Motor Trend magazine, we try to establish wether automatic transmission is better for mpg (miles per gallon), or not.
+
+After exploratory analysis, we try to fit first a simple regression model, then a multivariate regression model, to establish the impact of transmission type, and estimate its value.
+
+```{r dependencies, message=FALSE}
+library(ggplot2)
+library(car)
+library(kableExtra)
+library(knitr)
+library(ggplot2)
+library(GGally)
+library(lmtest)
+```
+
+
+## Exploratory analysis
+
+The dataset is part of the "datasets" library. We have to load the library, then load the mtcars dataset.
+```{r loaddata}
+library(datasets)
+data(mtcars)
+```
+We give in appendix some basic numbers about the dataset (dimensions, first 10 rows).
+Using help(mtcars), we identify the column giving transmission type, it is am (0 = automatic, 1 = manual).
+We check (see appendix) then the number of records per transmission type, for checking data is almost covering both cases.
+Finally we draw a boxplot giving global impact of transmission type on mpg distribution.
+
+Considering the boxplot shown in Appendix, mpg seems to be higher as transmission is manual.
+Let us further investigate.
+
+## Data processing
+
+We transform the appropriate columns into factors.
+
+```{r dataprocessing}
+c <- mtcars
+c$am <- as.factor(c$am)
+levels(c$am) <- c("auto", "manual")
+c$cyl <- as.factor(c$cyl)
+c$gear <- as.factor(c$gear) 
+c$carb <- as.factor(c$carb)
+c$vs <- as.factor(c$vs)
+```
+
+## Simple regression
+
+### Analysis
+
+We fit a simple regression model using am as predictor and mpg as outcome.
+We perform a t-test for validaing the hypothesis that mpg means differ across transmission type.
+You will see in appendix that the residual error distrbution is almost normal, and the residual errors are equally spaned around 0.
+ 
+```{r simpleregression-analysis, echo = FALSE}
+lmCar_am <- lm(mpg ~ am, data = c)
+coeflmCar_am <- summary(lmCar_am)$coefficients
+coeflmCar_am
+```
+
+
+### Results
+The p-value for the t-test is much less than 0.05 (cf appendix). The null hypothesis (equal means betFween automatic and manual transmission) is rejected.
+**The transmission has an effect on mpg, manual transmission cars have globally a better mpg.**
+According to this model, the gain between automatic and manual transmission is **`r round(coeflmCar_am[2, 1], 2)` miles / gallon**.
+In order to adjust this gain value, we have now to consider a multivariate regression.
+
+## Multivariate regression
+
+
+### Select the accurate factors
+
+We give below the standard error for each factor excluding am, ordered.
+We will then perform a nested approach, including a factor after another, in this order.
+
+```{r lmall-standarderrors}
+lmAll = lm(mpg ~ . - am, data = c)
+cv <- vif(lmAll)
+stdErrors <- cv[order(cv[,3],decreasing=T),3]
+dfcv <- data.frame()
+dfcv <- rbind(dfcv, stdErrors)
+colnames(dfcv) <- rownames(cv)
+rownames(dfcv) <- c("stderror")
+kable(dfcv)
+```
+
+
+
+```{r nested-models-1}
+models <- c()
+models <- vector("list", 9)
+f1 <- lm(mpg ~ am, c); models[[1]] <- f1
+f2 <- lm(mpg ~ am + disp, c); models[[2]] <- f2
+f3 <- lm(mpg ~ am + disp + hp, c); models[[3]] <- f3
+f4 <- lm(mpg ~ am + disp + hp + wt, c); models[[4]] <- f4
+f5 <- lm(mpg ~ am + disp + hp + wt + cyl, c); models[[5]] <- f5
+f6 <- lm(mpg ~ am + disp + hp + wt + cyl + qsec, c); models[[6]] <- f6
+f7 <- lm(mpg ~ am + disp + hp + wt + cyl + qsec + vs, c); models[[7]] <- f7
+f8 <- lm(mpg ~ am + disp + hp + wt + cyl + qsec + vs + gear, c); models[[8]] <- f8
+f9 <- lm(mpg ~ am + disp + hp + wt + cyl + qsec + vs + gear + carb, c); models[[9]] <- f9
+estimates <- c(); rse <- c()
+for (mdl in models) {
+    estimates <- c(estimates, round(mdl[1]$coefficients[2], 2))
+    rse <- c(rse, round(sqrt(deviance(mdl)/df.residual(mdl)), 2))
+}
+
+dfModelClass <- data.frame()
+dfModelClass <- rbind(dfModelClass, estimates); dfModelClass <- rbind(dfModelClass, rse)
+colnames(dfModelClass) <- 1:9; rownames(dfModelClass) <- c("Estimate", "Resid. Std Error")
+```
+
+```{r nested-models-2}
+a <- anova(f1, f2, f3, f4, f5, f6, f7, f8, f9)
+dfa <- data.frame()
+dfa <- rbind(dfa, round(a[[5]], 2))
+dfa <- rbind(dfa, round(a[[6]], 4))
+colnames(dfa) <- 1:9
+rownames(dfa) <- c("F", "Pr(>F)")
+```
+
+
+```{r nested-models-3}
+w <- waldtest(f1, f2, f3, f4, f5, f6, f7, f8, f9, test = "Chisq")
+dfw <- data.frame()
+dfw <- rbind(dfw, round(w[[3]], 2))
+dfw <- rbind(dfw, round(w[[4]], 4))
+colnames(dfw) <- 1:9
+rownames(dfw) <- c("Chisq", "Pr(>Chisq)")
+```
+
+```{r model-select}
+lmSel <- f5
+# lmSelModel <- as.character(lmSel$call)
+lmSelModel <- as.character(lmSel$call)
+```
+
+
+We select the model `r lmSelModel`. For this model, here is the summary.
+
+```{r dataanalysis-multivariate, fig.height=8}
+summary(lmSel)
+```
+
+### Results
+With the model selected, the impact is `r lmSel$coefficients[2]`.
+
+# Conclusion
+
+The positive impact of manual transmission versus automatic transmission has been evaluated follwing 2 models:
+
+1. Simple regression lm(mpg ~ am, c) : impact is 7.245
+2. Multivariate regression lm(mpg ~ am + hp + cyl + wt, c) : impact is 1.8
+
+
+# Appendix
+
+```{r appendix-dependencies, ref.label='dependencies', eval=FALSE}
+
+```
+
+```{r appendix-loaddata, ref.label='loaddata', eval=FALSE}
+
+```
+
+```{r exploratoryanalysis, echo=FALSE, fig.height=3}
+m <- mtcars
+m$amfactor <- as.factor(m$am)
+levels(m$amfactor) = c("auto", "manual")
+g <- ggplot(m, aes(x = amfactor, y = mpg))
+g <- g + geom_boxplot(aes(fill = amfactor))
+g <- g + xlab("Transmission")
+g <- g + ylab("Miles/(US) gallon")
+g
+```
+
+```{r appendix-dataprocessing, ref.label='dataprocessing', eval=FALSE}
+
+```
+
+```{r appendix-exploratoryanalysis-2}
+dim(mtcars)
+kable(head(mtcars)) %>% kable_styling(bootstrap_options = c("striped"))
+classes <- sapply(mtcars, class)
+dfClasses <- data.frame()
+dfClasses <- rbind(dfClasses, classes)
+colnames(dfClasses) <- names(classes)
+kable(dfClasses) %>% kable_styling(bootstrap_options = c("striped"))
+table(mtcars$am)
+?mtcars
+```
+```{r appendix-exploratoryanalysis, ref.label='exploratoryanalysis', eval=FALSE}
+
+```
+
+
+```{r appendix-simpleregression-analysis, fig.height=3}
+t.test(c[c$am == "auto", c("mpg")], c[c$am == "manual", c("mpg")], alternative = "two.sided", var.equal = FALSE, paired = FALSE)
+residCar_am <- residuals(lmCar_am)
+fittedCar_am <- fitted.values(lmCar_am)
+par(mfrow = c(1, 2))
+plot(fittedCar_am, residCar_am, xlab = "Predicted values", ylab = "Residuals")
+abline(h = 0, col = "red", lty = "dashed")
+plot(density(residCar_am), xlab = "Residuals", ylab = "Density", main = "")
+par(mfrow = c(1, 1))
+shapiro.test(lmCar_am$residuals)
+```
+### Covariances between factors
+```{r appendix-factorcovariances, message=FALSE, fig.height=8, cache=TRUE}
+ggpairs(c[, c("mpg", "am", "disp", "hp", "wt", "cyl", "qsec")],  
+        lower = list(continuous = "smooth"),
+        diag=list(continuous="bar"),
+        # upper=list(), 
+        axisLabels='show')
+```
+
+```{r appendix-lmall-standarderrors, ref.label="lmall-standarderrors", eval=FALSE}
+
+```
+
+
+```{r appendix-nested-models-1, ref.label="nested-models-1", eval=FALSE}
+
+```
+
+```{r appendix-nested-models-1-table}
+kable(dfModelClass)
+```
+
+```{r appendix-nested-models-2, ref.label="nested-models-2", eval=FALSE}
+
+```
+
+```{r appendix-nested-models-2-table}
+kable(dfa)
+```
+
+```{r appendix-nested-models-3, ref.label="nested-models-3", eval=FALSE}
+
+```
+
+```{r appendix-nested-models-3-table}
+kable(dfw)
+```
+
+```{r appendix-multiregression-resid, fig.height=3}
+resid <- residuals(lmSel)
+fitted <- fitted.values(lmSel)
+par(mfrow = c(1,2))
+plot(density(resid), xlab = "Residuals", ylab = "Density", main = "Residual distribution")
+plot(fitted, resid, xlab = "Predicted values", ylab = "Residuals")
+abline(h = 0, col = "red", lty = "dashed")
+shapiro.test(lmSel$residuals)
+```
+
+```{r appendix-multiregression-resid-2, fig.height=6}
+par(mfrow = c(2,2))
+plot(lmSel)
+```
+
+[http://github.com/vinceforce/blob/master/mpg_vs_transmission.Rmd]
